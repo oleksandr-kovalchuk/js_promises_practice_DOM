@@ -8,78 +8,67 @@ const showNotification = (message, type) => {
   document.body.insertAdjacentHTML('afterbegin', notificationHTML);
 };
 
-const success = (message) => showNotification(message, 'success');
-const error = (message) => showNotification(message, 'error');
+const showSuccess = (message) => showNotification(message, 'success');
+const showError = (message) => showNotification(message, 'error');
 
-// First Promise: Resolves on left click or rejects after 3 seconds.
-const firstPromise = new Promise((resolve, reject) => {
-  const onLeftClick = (e) => {
+const leftClickOrTimeoutPromise = new Promise((resolve, reject) => {
+  const handleLeftClick = (e) => {
     if (e.button === 0) {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleLeftClick);
       resolve();
-      document.removeEventListener('click', onLeftClick);
     }
   };
 
-  document.addEventListener('click', onLeftClick);
+  document.addEventListener('click', handleLeftClick);
 
-  const rejectAfterTimeout = () => {
+  const timeoutId = setTimeout(() => {
+    document.removeEventListener('click', handleLeftClick);
     reject(new Error('First promise was rejected'));
-    document.removeEventListener('click', onLeftClick);
-  };
-
-  setTimeout(rejectAfterTimeout, 3000);
+  }, 3000);
 });
 
-// Second Promise: Resolves on either left click or right click.
-const secondPromise = new Promise((resolve) => {
-  const onClickOrRightClick = (e) => {
+const anyClickPromise = new Promise((resolve) => {
+  const handleAnyClick = (e) => {
     if (e.button === 0 || e.button === 2) {
+      document.removeEventListener('click', handleAnyClick);
+      document.removeEventListener('contextmenu', handleAnyClick);
       resolve();
-      document.removeEventListener('click', onClickOrRightClick);
-      document.removeEventListener('contextmenu', onClickOrRightClick);
     }
   };
 
-  document.addEventListener('click', onClickOrRightClick);
-  document.addEventListener('contextmenu', onClickOrRightClick);
+  document.addEventListener('click', handleAnyClick);
+  document.addEventListener('contextmenu', handleAnyClick);
 });
 
-// Third Promise: Resolves when both left and right clicks happen.
-const thirdPromise = new Promise((resolve) => {
-  let leftClickHappened = false;
-  let rightClickHappened = false;
+const bothClicksPromise = Promise.all([
+  new Promise((resolve) => {
+    const handleLeftClick = (e) => {
+      if (e.button === 0) {
+        document.removeEventListener('click', handleLeftClick);
+        resolve();
+      }
+    };
 
-  const onLeftClick = (e) => {
-    if (e.button === 0) {
-      leftClickHappened = true;
-      checkBothClicks();
-    }
-  };
+    document.addEventListener('click', handleLeftClick);
+  }),
 
-  const onRightClick = (e) => {
-    if (e.button === 2) {
-      rightClickHappened = true;
-      checkBothClicks();
-    }
-  };
+  new Promise((resolve) => {
+    const handleRightClick = (e) => {
+      if (e.button === 2) {
+        document.removeEventListener('contextmenu', handleRightClick);
+        resolve();
+      }
+    };
 
-  const checkBothClicks = () => {
-    if (leftClickHappened && rightClickHappened) {
-      resolve();
-      document.removeEventListener('click', onLeftClick);
-      document.removeEventListener('contextmenu', onRightClick);
-    }
-  };
+    document.addEventListener('contextmenu', handleRightClick);
+  }),
+]);
 
-  document.addEventListener('click', onLeftClick);
-  document.addEventListener('contextmenu', onRightClick);
-});
+leftClickOrTimeoutPromise
+  .then(() => showSuccess('First promise was resolved'))
+  .catch((error) => showError(error.message));
 
-// Handling Promises
-firstPromise
-  .then(() => success('First promise was resolved'))
-  .catch((err) => error(err.message));
+anyClickPromise.then(() => showSuccess('Second promise was resolved'));
 
-secondPromise.then(() => success('Second promise was resolved'));
-
-thirdPromise.then(() => success('Third promise was resolved'));
+bothClicksPromise.then(() => showSuccess('Third promise was resolved'));
